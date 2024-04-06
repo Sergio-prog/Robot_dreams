@@ -4,6 +4,20 @@ import {
 import { expect } from "chai";
 import hre from "hardhat";
 
+type Domain = {
+    name: string;
+    timestamp: number;
+    owner: string
+}
+
+let domainPurchased = 0;
+let allDomains: Domain[] = [];
+let allDomainsSorted: Domain[] = [];
+let allDomainsUser: Record<string, Array<Domain>> = {};
+let allDomainsUserSorted: Record<string, Array<Domain>> = {};
+
+const stringify = (value: any) => JSON.stringify(value, undefined, 2);
+
 describe("RegistrarController", function () {
     // We define a fixture to reuse the same setup in every test.
     // We use loadFixture to run this setup once, snapshot that state,
@@ -16,6 +30,24 @@ describe("RegistrarController", function () {
 
       const RegistrarController = await hre.ethers.getContractFactory("RegistrarController");
       const registrar = await RegistrarController.deploy(owner.address, ONE_ETHER);
+
+      // Listening events
+      registrar.on(registrar.getEvent("DomainPurchase"), (owner, domainName, timestamp) => {
+        const domain: Domain = { name: domainName, owner: owner, timestamp: Number(timestamp) };
+        domainPurchased++;
+
+        allDomains.push(domain);
+        allDomainsSorted = allDomains.sort((prev, curr) => Number(prev.timestamp - curr.timestamp));
+
+        if (!Array.isArray(allDomainsUser[owner])) {
+            allDomainsUser[owner] = [];
+        }
+        allDomainsUser[owner].push(domain);
+
+        for (const owner in allDomainsUser) {
+            allDomainsUserSorted[owner] = allDomainsUser[owner].sort((prev, curr) => Number(prev.timestamp - curr.timestamp));
+        }
+      })
 
       return { registrar, owner, otherAccount, domainPrice: ONE_ETHER };
     }
@@ -35,15 +67,6 @@ describe("RegistrarController", function () {
     });
 
     describe("Domains", function() {
-        // it("Should throw error if domain controller not found", async function() {
-        //     const { registrar } = await loadFixture(deployFixture);
-        //     const randomDomain = "com";
-
-        //     await expect(registrar.getDomainController(randomDomain)).to.be.revertedWith(
-        //         "Domain controller not found."
-        //     )
-        // });
-
         it("Should return null address if domain controller not found", async function() {
             const { registrar } = await loadFixture(deployFixture);
             const randomDomain = "com";
@@ -54,10 +77,14 @@ describe("RegistrarController", function () {
         it("Register new domain", async function() {
             const { registrar, domainPrice, owner } = await loadFixture(deployFixture);
             const domainName = "com";
-            // console.log(domainPrice, typeof domainPrice);
 
+            let tx = await registrar.registerDomain(domainName, { value: domainPrice });
 
-            await registrar.registerDomain(domainName, { value: domainPrice });
+            // This line is added because polling is used to receive events, and the polling interval is 4 seconds
+            await new Promise(res => setTimeout(() => res(null), 4001));
+
+            expect(tx).not.to.be.reverted;
+            expect(tx).to.emit(registrar, "DomainPurchase");
 
             expect(await registrar.getDomainController(domainName)).to.equal(owner);
             expect(await hre.ethers.provider.getBalance(await registrar.getAddress())).to.equal(domainPrice);
@@ -78,13 +105,14 @@ describe("RegistrarController", function () {
 
         it("Should revert if domain is already taken", async function() {
             const { registrar, domainPrice, otherAccount } = await loadFixture(deployFixture);
-            const domainName = "com";
+            const domainName = "org";
 
             await registrar.connect(otherAccount).registerDomain(domainName, { value: domainPrice });
 
             await expect(registrar.registerDomain(domainName, { value: domainPrice })).to.be.revertedWith(
                 "Domain has been purchased by someone before."
             );
+            await new Promise(res => setTimeout(() => res(null), 5001));
         });
     });
 
@@ -97,22 +125,21 @@ describe("RegistrarController", function () {
         });
 
         it("Set new domain price", async function() {
-            const { registrar, otherAccount } = await loadFixture(deployFixture);
+            const { registrar } = await loadFixture(deployFixture);
             const newPrice = 2n * 10n ** 18n;
 
             await expect(registrar.setDomainPrice(newPrice)).not.to.be.reverted;
             expect(await registrar.domainPrice()).to.equal(newPrice);
         });
-
-        // it("Get domain price");
     });
 
     describe("Withdraw", function() {
         it("Withdraw all ethers to address", async function() {
             const { registrar, owner, otherAccount, domainPrice } = await loadFixture(deployFixture);
-            const domainName = "com";
+            const domainName = "io";
 
             await registrar.connect(otherAccount).registerDomain(domainName, { value: domainPrice });
+            await new Promise(res => setTimeout(() => res(null), 5001));
 
             expect(await hre.ethers.provider.getBalance(await registrar.getAddress())).to.equal(domainPrice);
             await expect(registrar.withdrawAllEther(owner.address)).to.changeEtherBalances(
@@ -120,5 +147,11 @@ describe("RegistrarController", function () {
                 [domainPrice, -domainPrice]
             );
         });
+    })
+
+    after(function() {
+        console.log(`Total domains purchased: ${domainPurchased}`);
+        console.log(`All domains list: ${stringify(allDomainsSorted)}`);
+        console.log(`All domains list by user: ${stringify(allDomainsUserSorted)}`);
     })
 });
