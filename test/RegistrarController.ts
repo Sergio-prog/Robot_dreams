@@ -2,7 +2,8 @@ import {
     loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import hre from "hardhat";
+import hre, {ethers, upgrades} from "hardhat";
+
 
 type Domain = {
     name: string;
@@ -28,8 +29,9 @@ describe("RegistrarController", function () {
       // Contracts are deployed using the first signer/account by default
       const [owner, otherAccount] = await hre.ethers.getSigners();
 
-      const RegistrarController = await hre.ethers.getContractFactory("RegistrarController");
-      const registrar = await RegistrarController.deploy(owner.address, ONE_ETHER);
+      const RegistrarController = await ethers.getContractFactory("RegistrarController");
+
+      const registrar = await upgrades.deployProxy(RegistrarController, [owner.address, ONE_ETHER], { initializer: 'initialize', kind: 'transparent' });
 
       // Listening events
       registrar.on(registrar.getEvent("DomainPurchase"), (owner, domainName, timestamp) => {

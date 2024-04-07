@@ -2,13 +2,17 @@
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
 pragma solidity 0.8.24;
 
 /**
  * @title A simple domain registry
  * @author Sergey Nesterov (Sergio-Prog)
  */
-contract RegistrarController is Ownable {
+contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgradeable {
     /// @notice Current price of domain
     uint public domainPrice;
 
@@ -41,8 +45,10 @@ contract RegistrarController is Ownable {
      * @param _owner Owner address of contract
      * @param _domainPrice Init domain price
      */
-    constructor(address _owner, uint _domainPrice) Ownable(_owner) {
+    // constructor(address _owner, uint _domainPrice) Ownable(_owner) {
+    function initialize(address _owner, uint _domainPrice) initializer public {
         domainPrice = _domainPrice;
+        __Ownable_init(_owner);
         emit DomainPriceChanged(domainPrice);
     }
 

@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 const { vars } = require("hardhat/config");
+import '@openzeppelin/hardhat-upgrades';
 
 const INFURA_API_KEY = vars.get("INFURA_API_KEY");
 const SEPOLIA_PRIVATE_KEY = vars.get("SEPOLIA_PRIVATE_KEY");

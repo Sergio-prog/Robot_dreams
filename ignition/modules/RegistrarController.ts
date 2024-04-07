@@ -2,13 +2,26 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 const defaultDomainPrice = 1n * 10n ** 18n; // 50_000_000_000_000_000 // 0.05 Ethers
 
-const RegistrarControllerModule = buildModule("RegistrarControllerModule", (m) => {
-  // const unlockTime = m.getParameter("unlockTime", JAN_1ST_2030);
-  const account1 = m.getAccount(0);
+const RegistrarControllerProxyModule = buildModule("RegistrarControllerProxyModule", (m) => {
+  const proxyAdminOwner = m.getAccount(0);
 
-  const registrar = m.contract("RegistrarController", [account1, defaultDomainPrice], { from: account1 });
+  const registrar = m.contract("RegistrarController", [proxyAdminOwner, defaultDomainPrice], { from: proxyAdminOwner });
 
-  return { registrar };
+  const proxy = m.contract("TransparentUpgradeableProxy", [
+    registrar,
+    proxyAdminOwner,
+    "0x",
+  ]);
+
+  const proxyAdminAddress = m.readEventArgument(
+    proxy,
+    "AdminChanged",
+    "newAdmin"
+  );
+
+  const proxyAdmin = m.contractAt("ProxyAdmin", proxyAdminAddress);
+
+  return { proxyAdmin, proxy };
 });
 
-export default RegistrarControllerModule;
+export default RegistrarControllerProxyModule;
