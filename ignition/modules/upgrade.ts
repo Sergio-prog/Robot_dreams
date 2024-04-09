@@ -1,18 +1,11 @@
-import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
-import RegistrarControllerProxyModule from "./RegistrarController"
+import { ethers, upgrades } from "hardhat";
 
-const RegistrarControllerUpgradeModule = buildModule("RegistrarControllerUpgradeModule", (m) => {
-  const proxyAdminOwner = m.getAccount(0);
+(async () => {
+  const registrarV2 = await ethers.getContractFactory("RegistrarController");
+  const address = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0" // Replace 
+  
+  const upgradedToContractV2 = await upgrades.upgradeProxy(address, registrarV2);
+  console.log("RegistrarControllerV2 upgraded\n");
 
-  const { proxyAdmin, proxy } = m.useModule(RegistrarControllerProxyModule);
-
-  const RegistrarControllerV2 = m.contract("RegistrarController");
-
-  m.call(proxyAdmin, "upgradeAndCall", [proxy, RegistrarControllerV2, "0x"], {
-    from: proxyAdminOwner,
-  });
-
-  return { proxyAdmin, proxy };
-});
-
-export default RegistrarControllerUpgradeModule;
+  console.log("RegistrarControllerV2 address:", await upgradedToContractV2.getAddress());
+})();

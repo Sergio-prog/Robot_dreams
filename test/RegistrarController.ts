@@ -3,6 +3,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import hre, {ethers, upgrades} from "hardhat";
+import { RegistrarController } from "../typechain-types/contracts/RegistrarController";
 
 
 type Domain = {
@@ -27,10 +28,9 @@ describe("RegistrarController", function () {
       const ONE_ETHER = 1n * 10n ** 18n;
 
       // Contracts are deployed using the first signer/account by default
-      const [owner, otherAccount] = await hre.ethers.getSigners();
+      const [owner, otherAccount, otherAccount2] = await hre.ethers.getSigners();
 
-      const RegistrarController = await ethers.getContractFactory("RegistrarController");
-
+      const RegistrarController = await hre.ethers.getContractFactory("RegistrarController");
       const registrar = await upgrades.deployProxy(RegistrarController, [owner.address, ONE_ETHER], { initializer: 'initialize', kind: 'transparent' });
 
       // Listening events
@@ -51,7 +51,7 @@ describe("RegistrarController", function () {
         }
       })
 
-      return { registrar, owner, otherAccount, domainPrice: ONE_ETHER };
+      return { registrar: (registrar as unknown as RegistrarController), owner, otherAccount, otherAccount2, domainPrice: ONE_ETHER };
     }
 
     describe("Deployment", function() {
@@ -116,6 +116,42 @@ describe("RegistrarController", function () {
             );
             await new Promise(res => setTimeout(() => res(null), 5001));
         });
+
+        it("Should add rewards for top domain owners", async function() {
+            const { registrar, domainPrice, otherAccount, otherAccount2, owner } = await loadFixture(deployFixture);
+            
+            await registrar.connect(otherAccount).registerDomain("org", { value: domainPrice });
+            const registerTx2 = await registrar.connect(otherAccount2).registerDomain("test.org", { value: domainPrice });
+
+            await expect(registerTx2).to.changeEtherBalances(
+                [otherAccount2],
+                [-domainPrice]
+            );
+            
+            const tx1 = await registrar.domainRewards(otherAccount);
+            const tx2 = await registrar.domainRewards(owner);
+
+            expect(tx1).to.equal(domainPrice / 2n);
+            expect(tx2).to.equal(domainPrice + domainPrice / 2n);
+        });
+
+        it("Should add rewards for top domain owners (3 levels)", async function() {
+            const { registrar, domainPrice, otherAccount, otherAccount2, owner } = await loadFixture(deployFixture);
+            
+            await registrar.connect(otherAccount).registerDomain("test.org", { value: domainPrice });
+            const registerTx2 = await registrar.connect(otherAccount2).registerDomain("www.test.org", { value: domainPrice });
+
+            await expect(registerTx2).to.changeEtherBalances(
+                [otherAccount2],
+                [-domainPrice]
+            );
+            
+            console.log(await registrar.domainRewards(otherAccount));
+            console.log(await registrar.domainRewards(owner));
+            
+            expect(await registrar.domainRewards(otherAccount)).to.equal(domainPrice);
+            expect(await registrar.domainRewards(owner)).to.equal(domainPrice + domainPrice);
+        });
     });
 
     describe("Price", function() {
@@ -150,6 +186,7 @@ describe("RegistrarController", function () {
             );
         });
     })
+
 
     after(function() {
         console.log(`Total domains purchased: ${domainPurchased}`);

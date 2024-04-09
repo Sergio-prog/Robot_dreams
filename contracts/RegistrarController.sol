@@ -6,6 +6,8 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+import {strings} from "./libraries/strings.sol";
+
 pragma solidity 0.8.24;
 
 /**
@@ -13,11 +15,16 @@ pragma solidity 0.8.24;
  * @author Sergey Nesterov (Sergio-Prog)
  */
 contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgradeable {
+    using strings for *;
+
     /// @notice Current price of domain
     uint public domainPrice;
 
     /// @dev Map with domainName -> owner
     mapping (string => address) private domainRecords;
+    
+    /// @notice Rewards for register subdomain for domain owner
+    mapping (address => uint) public domainRewards;
 
     /**
      * Domain Purchase event
@@ -45,7 +52,6 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
      * @param _owner Owner address of contract
      * @param _domainPrice Init domain price
      */
-    // constructor(address _owner, uint _domainPrice) Ownable(_owner) {
     function initialize(address _owner, uint _domainPrice) initializer public {
         domainPrice = _domainPrice;
         __Ownable_init(_owner);
@@ -68,6 +74,25 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
         require(msg.value >= domainPrice, "Ether value is lower than price.");
         require(domainRecords[domainName] == address(0), "Domain has been purchased by someone before.");
 
+        string memory seperator = ".";
+
+        strings.slice memory s = domainName.toSlice();
+        strings.slice memory delim = seperator.toSlice();
+        string[] memory parts = new string[](s.count(delim) + 1);
+
+        uint restValue = domainPrice;
+
+        for(uint i = 0; i < parts.length; i++) {
+            address domainOwner = domainRecords[s.split(delim).toString()];
+            if (domainOwner != address(0)) {
+                uint reward = domainPrice / parts.length;
+                domainRewards[domainOwner] += reward;
+                restValue -= reward;
+            }
+        }
+
+        domainRewards[owner()] += restValue;
+
         domainRecords[domainName] = msg.sender;
         emit DomainPurchase(msg.sender, domainName, block.timestamp);
     }
@@ -82,11 +107,15 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
     }
 
     /**
-     * Withdraws all ethers from contract to owner
-     * @param to Receiver address
+     * Withdraws all ethers rewards from contract to owner
+     * @param to Rewards receiver address
      */
     function withdrawAllEther(address payable to) external onlyOwner {
-        uint balance = address(this).balance;
+        uint balance = domainRewards[to];
+        require(balance > 0, "Your rewards must be greater than 0.");
+
+        domainRewards[to] = 0;
+
         (bool sent,) = to.call{value: balance}("");
         require(sent, "Failed to send Ether");
 
