@@ -131,13 +131,14 @@ describe("RegistrarController", function () {
             const tx1 = await registrar.domainRewards(otherAccount);
             const tx2 = await registrar.domainRewards(owner);
 
-            expect(tx1).to.equal(domainPrice / 2n);
-            expect(tx2).to.equal(domainPrice + domainPrice / 2n);
+            expect(tx1).to.equal(domainPrice);
+            expect(tx2).to.equal(domainPrice);
         });
 
         it("Should add rewards for top domain owners (3 levels)", async function() {
             const { registrar, domainPrice, otherAccount, otherAccount2, owner } = await loadFixture(deployFixture);
             
+            await registrar.connect(otherAccount).registerDomain("org", { value: domainPrice });
             await registrar.connect(otherAccount).registerDomain("test.org", { value: domainPrice });
             const registerTx2 = await registrar.connect(otherAccount2).registerDomain("www.test.org", { value: domainPrice });
 
@@ -149,8 +150,8 @@ describe("RegistrarController", function () {
             console.log(await registrar.domainRewards(otherAccount));
             console.log(await registrar.domainRewards(owner));
             
-            expect(await registrar.domainRewards(otherAccount)).to.equal(domainPrice);
-            expect(await registrar.domainRewards(owner)).to.equal(domainPrice + domainPrice);
+            expect(await registrar.domainRewards(otherAccount)).to.equal(domainPrice * 2n);
+            expect(await registrar.domainRewards(owner)).to.equal(domainPrice * 2n);
         });
     });
 

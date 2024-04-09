@@ -10,6 +10,8 @@ import {strings} from "./libraries/strings.sol";
 
 pragma solidity 0.8.24;
 
+import "hardhat/console.sol";
+
 /**
  * @title A simple domain registry
  * @author Sergey Nesterov (Sergio-Prog)
@@ -74,21 +76,37 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
         require(msg.value >= domainPrice, "Ether value is lower than price.");
         require(domainRecords[domainName] == address(0), "Domain has been purchased by someone before.");
 
-        string memory seperator = ".";
-
         strings.slice memory s = domainName.toSlice();
-        strings.slice memory delim = seperator.toSlice();
-        string[] memory parts = new string[](s.count(delim) + 1);
+        strings.slice memory delim = ".".toSlice();
+        uint parts = s.count(delim);
 
         uint restValue = domainPrice;
 
-        for(uint i = 0; i < parts.length; i++) {
-            address domainOwner = domainRecords[s.split(delim).toString()];
+        // string memory currentStringPart = s.split(delim).toString();
+        string memory localDomainName = "";
+        
+        for(uint i = 0; i < parts; i++) {
+            localDomainName = s.rsplit(delim).toString();
+            
+            // console.log("1", localDomainName);
+            address domainOwner = domainRecords[localDomainName];
+            require(domainOwner != address(0), "Not all domain levels has been registred");
+            // console.log("3", domainOwner);
+
             if (domainOwner != address(0)) {
-                uint reward = domainPrice / parts.length;
+                uint reward = domainPrice / parts;
                 domainRewards[domainOwner] += reward;
+
                 restValue -= reward;
             }
+
+            // if (i < parts.length - 1) { // Изменено: добавляем точку после каждой части домена, кроме последней
+            // localDomainName = string.concat(localDomainName, ".");
+            // }
+
+            // currentStringPart = s.split(delim).toString();
+            // localDomainName = string.concat(localDomainName, ".", currentStringPart);
+            // console.log("2", localDomainName, currentStringPart);
         }
 
         domainRewards[owner()] += restValue;
