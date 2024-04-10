@@ -82,16 +82,18 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
 
         uint restValue = domainPrice;
 
-        // string memory currentStringPart = s.split(delim).toString();
         string memory localDomainName = "";
         
         for(uint i = 0; i < parts; i++) {
-            localDomainName = s.rsplit(delim).toString();
+            if (i > 0) {
+                localDomainName = string.concat(s.rsplit(delim).toString(), ".", localDomainName); // Join all domain parts
+            } else {
+                localDomainName = s.rsplit(delim).toString(); // or take last part of domain, if it first iteration
+            }
             
-            // console.log("1", localDomainName);
+            
             address domainOwner = domainRecords[localDomainName];
-            require(domainOwner != address(0), "Not all domain levels has been registred");
-            // console.log("3", domainOwner);
+            require(domainOwner != address(0), "Not all domain levels has been registred.");
 
             if (domainOwner != address(0)) {
                 uint reward = domainPrice / parts;
@@ -99,14 +101,6 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
 
                 restValue -= reward;
             }
-
-            // if (i < parts.length - 1) { // Изменено: добавляем точку после каждой части домена, кроме последней
-            // localDomainName = string.concat(localDomainName, ".");
-            // }
-
-            // currentStringPart = s.split(delim).toString();
-            // localDomainName = string.concat(localDomainName, ".", currentStringPart);
-            // console.log("2", localDomainName, currentStringPart);
         }
 
         domainRewards[owner()] += restValue;
@@ -135,7 +129,7 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
         domainRewards[to] = 0;
 
         (bool sent,) = to.call{value: balance}("");
-        require(sent, "Failed to send Ether");
+        require(sent, "Failed to send Ether rewards.");
 
         emit EtherWithdraw(to, balance);
     }

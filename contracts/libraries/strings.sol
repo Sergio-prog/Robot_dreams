@@ -82,34 +82,6 @@ library strings {
         }
     }
 
-    /*
-     * @dev Splits the slice, setting `self` to everything after the first
-     *      occurrence of `needle`, and `token` to everything before it. If
-     *      `needle` does not occur in `self`, `self` is set to the empty slice,
-     *      and `token` is set to the entirety of `self`.
-     * @param self The slice to split.
-     * @param needle The text to search for in `self`.
-     * @param token An output parameter to which the first token is written.
-     * @return `token`.
-     */
-    function split(slice memory self, slice memory needle, slice memory token) internal pure returns (slice memory) {
-        uint ptr = findPtr(self._len, self._ptr, needle._len, needle._ptr);
-        token._ptr = self._ptr;
-        token._len = ptr - self._ptr;
-        if (ptr == self._ptr + self._len) {
-            // Not found
-            self._len = 0;
-        } else {
-            self._len -= token._len + needle._len;
-            self._ptr = ptr + needle._len;
-        }
-        return token;
-    }
-
-    function split(slice memory self, slice memory needle) internal pure returns (slice memory token) {
-        split(self, needle, token);
-    }
-
     function memcpy(uint dest, uint src, uint length) private pure {
         // Copy word-length chunks while possible
         for(; length >= 32; length -= 32) {

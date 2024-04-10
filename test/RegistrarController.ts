@@ -2,7 +2,7 @@ import {
     loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import hre, {ethers, upgrades} from "hardhat";
+import hre, {upgrades} from "hardhat";
 import { RegistrarController } from "../typechain-types/contracts/RegistrarController";
 
 
@@ -138,21 +138,30 @@ describe("RegistrarController", function () {
         it("Should add rewards for top domain owners (3 levels)", async function() {
             const { registrar, domainPrice, otherAccount, otherAccount2, owner } = await loadFixture(deployFixture);
             
-            await registrar.connect(otherAccount).registerDomain("org", { value: domainPrice });
-            await registrar.connect(otherAccount).registerDomain("test.org", { value: domainPrice });
-            const registerTx2 = await registrar.connect(otherAccount2).registerDomain("www.test.org", { value: domainPrice });
+            await registrar.connect(otherAccount).registerDomain("io", { value: domainPrice });
+            await registrar.connect(otherAccount).registerDomain("test.io", { value: domainPrice });
+
+            const registerTx2 = await registrar.connect(otherAccount2).registerDomain("www.test.io", { value: domainPrice });
 
             await expect(registerTx2).to.changeEtherBalances(
                 [otherAccount2],
                 [-domainPrice]
             );
             
-            console.log(await registrar.domainRewards(otherAccount));
-            console.log(await registrar.domainRewards(owner));
-            
             expect(await registrar.domainRewards(otherAccount)).to.equal(domainPrice * 2n);
-            expect(await registrar.domainRewards(owner)).to.equal(domainPrice * 2n);
+            expect(await registrar.domainRewards(owner)).to.equal(domainPrice);
         });
+
+        it("Should revert if trying to register wrong top level domain.", async function() {
+            const { registrar, domainPrice, otherAccount, otherAccount2 } = await loadFixture(deployFixture);
+
+            await registrar.connect(otherAccount).registerDomain("io", { value: domainPrice });
+            
+
+            await expect(registrar.connect(otherAccount2).registerDomain("www.test.io", { value: domainPrice })).to.be.revertedWith(
+                "Not all domain levels has been registred."
+            );
+        })
     });
 
     describe("Price", function() {
@@ -185,6 +194,32 @@ describe("RegistrarController", function () {
                 [owner, registrar],
                 [domainPrice, -domainPrice]
             );
+        });
+
+        it("Withdraw all rewards to address (3 levels)", async function() {
+            const { registrar, owner, otherAccount, otherAccount2, domainPrice } = await loadFixture(deployFixture);
+
+            await registrar.connect(otherAccount).registerDomain("io", { value: domainPrice });
+            await registrar.connect(otherAccount).registerDomain("test.io", { value: domainPrice });
+
+            await expect(await registrar.connect(otherAccount2).registerDomain("www.test.io", { value: domainPrice })).to.changeEtherBalances(
+                [otherAccount2, registrar],
+                [-domainPrice, domainPrice]
+            );
+
+            await new Promise(res => setTimeout(() => res(null), 5001));
+
+            expect(await hre.ethers.provider.getBalance(await registrar.getAddress())).to.equal(domainPrice * 3n);
+            await expect(registrar.withdrawAllEther(owner.address)).to.changeEtherBalances(
+                [owner, registrar],
+                [domainPrice, -domainPrice]
+            );
+
+            await expect(registrar.withdrawAllEther(otherAccount.address)).to.changeEtherBalances(
+                [otherAccount, registrar],
+                [domainPrice * 2n, -domainPrice * 2n]
+            );
+
         });
     })
 
