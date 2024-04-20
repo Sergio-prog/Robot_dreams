@@ -1,4 +1,3 @@
-import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 import { ethers, upgrades } from "hardhat";
 
 const defaultDomainPrice = 1n * 10n ** 18n; // 50_000_000_000_000_000 // 0.05 Ethers
