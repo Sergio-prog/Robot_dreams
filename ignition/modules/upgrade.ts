@@ -2,7 +2,7 @@ import { ethers, upgrades } from "hardhat";
 
 (async () => {
   const registrarV2 = await ethers.getContractFactory("RegistrarController");
-  const address = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0" // Replace this. Proxy storage contract address
+  const address = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9" // Replace this. Proxy storage contract address
   
   const upgradedToContractV2 = await upgrades.upgradeProxy(address, registrarV2);
   console.log("RegistrarControllerV2 upgraded\n");

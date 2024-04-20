@@ -32,6 +32,6 @@ export default RegistrarControllerProxyModule;
   console.log("Deploying contract with account:", deployer.address);
 
   const registrar = await ethers.getContractFactory("RegistrarController");
-  const contract = await upgrades.deployProxy(registrar, [deployer, defaultDomainPrice]);
+  const contract = await upgrades.deployProxy(registrar, [deployer.address, defaultDomainPrice]);
   console.log("RegistrarController deployed to:", await contract.getAddress());
 })();
