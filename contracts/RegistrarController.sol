@@ -10,8 +10,6 @@ import {strings} from "./libraries/strings.sol";
 
 pragma solidity 0.8.24;
 
-import "hardhat/console.sol";
-
 /**
  * @title A simple domain registry
  * @author Sergey Nesterov (Sergio-Prog)
