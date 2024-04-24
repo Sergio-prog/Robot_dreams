@@ -2,7 +2,7 @@ import {
     loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import hre, {upgrades} from "hardhat";
+import hre, {ethers, upgrades} from "hardhat";
 import { RegistrarController } from "../typechain-types/contracts/RegistrarController";
 
 
@@ -31,7 +31,7 @@ describe("RegistrarController", function () {
       const [owner, otherAccount, otherAccount2] = await hre.ethers.getSigners();
 
       const RegistrarController = await hre.ethers.getContractFactory("RegistrarController");
-      const registrar = await upgrades.deployProxy(RegistrarController, [owner.address, ONE_ETHER], { initializer: 'initialize', kind: 'transparent' });
+      const registrar = await upgrades.deployProxy(RegistrarController, [owner.address, ONE_ETHER]);
 
       // Listening events
       registrar.on(registrar.getEvent("DomainPurchase"), (owner, domainName, timestamp) => {
