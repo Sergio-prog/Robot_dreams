@@ -13,11 +13,17 @@ pragma solidity 0.8.24;
  * @author Sergey Nesterov (Sergio-Prog)
  */
 contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgradeable {
-    /// @notice Current price of domain
-    uint public domainPrice;
+    // keccak256(abi.encode(uint256(keccak256("RegistrarController.main")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant MAIN_STORAGE_LOCATION = 0x3eb6e6dee6a7a8f6972392e1f1659b26c1c7f421b78f4d3e4fc217943767e300;
 
-    /// @dev Map with domainName -> owner
-    mapping (string => address) private domainRecords;
+    /// @custom:storage-location erc7201:RegistrarController.main
+    struct MainStorage {
+        /// @notice Current price of domain
+        uint domainPrice;
+
+        /// @dev Map with domainName -> owner
+        mapping (string => address) domainRecords;
+    }
 
     /**
      * Domain Purchase event
@@ -40,6 +46,12 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
      */
     event DomainPriceChanged(uint newPrice);
 
+    function _getMainStorage() private pure returns (MainStorage storage $) {
+        assembly {
+            $.slot := MAIN_STORAGE_LOCATION
+        }
+    }
+
     /**
      * Contract init
      * @param _owner Owner address of contract
@@ -47,9 +59,9 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
      */
     // constructor(address _owner, uint _domainPrice) Ownable(_owner) {
     function initialize(address _owner, uint _domainPrice) initializer public {
-        domainPrice = _domainPrice;
         __Ownable_init(_owner);
-        emit DomainPriceChanged(domainPrice);
+        _getMainStorage().domainPrice = _domainPrice;
+        emit DomainPriceChanged(_domainPrice);
     }
 
     /**
@@ -57,7 +69,11 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
      * @param domainName Name of domain to check
      */
     function getDomainController(string memory domainName) external view returns (address) {
-        return domainRecords[domainName];
+        return _getMainStorage().domainRecords[domainName];
+    }
+    
+    function domainPrice() external view returns (uint256) {
+        return _getMainStorage().domainPrice;
     }
 
     /**
@@ -65,20 +81,23 @@ contract RegistrarController is Initializable, ContextUpgradeable, OwnableUpgrad
      * @param domainName Name of domain to register
      */
     function registerDomain(string memory domainName) payable external {
-        require(msg.value >= domainPrice, "Ether value is lower than price.");
-        require(domainRecords[domainName] == address(0), "Domain has been purchased by someone before.");
+        MainStorage storage $ = _getMainStorage();
 
-        domainRecords[domainName] = msg.sender;
+        require(msg.value >= $.domainPrice, "Ether value is lower than price.");
+        require($.domainRecords[domainName] == address(0), "Domain has been purchased by someone before.");
+
+        $.domainRecords[domainName] = msg.sender;
         emit DomainPurchase(msg.sender, domainName, block.timestamp);
     }
 
-    /**
+     /**
      * Set new price for domains (Only for owner)
      * @param newPrice New price for domains
      */
     function setDomainPrice(uint newPrice) external onlyOwner {
-        domainPrice = newPrice;
-        emit DomainPriceChanged(domainPrice);
+        MainStorage storage $ = _getMainStorage();
+        $.domainPrice = newPrice;
+        emit DomainPriceChanged($.domainPrice);
     }
 
     /**
