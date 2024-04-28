@@ -25,29 +25,37 @@ library strings {
                 }
 
                 bytes32 needledata;
-                assembly { needledata := and(mload(needleptr), mask) }
+                assembly {
+                    needledata := and(mload(needleptr), mask)
+                }
 
                 uint end = selfptr + selflen - needlelen;
                 bytes32 ptrdata;
-                assembly { ptrdata := and(mload(ptr), mask) }
+                assembly {
+                    ptrdata := and(mload(ptr), mask)
+                }
 
                 while (ptrdata != needledata) {
-                    if (ptr >= end)
-                        return selfptr + selflen;
+                    if (ptr >= end) return selfptr + selflen;
                     ptr++;
-                    assembly { ptrdata := and(mload(ptr), mask) }
+                    assembly {
+                        ptrdata := and(mload(ptr), mask)
+                    }
                 }
                 return ptr;
             } else {
                 // For long needles, use hashing
                 bytes32 hash;
-                assembly { hash := keccak256(needleptr, needlelen) }
+                assembly {
+                    hash := keccak256(needleptr, needlelen)
+                }
 
                 for (idx = 0; idx <= selflen - needlelen; idx++) {
                     bytes32 testHash;
-                    assembly { testHash := keccak256(ptr, needlelen) }
-                    if (hash == testHash)
-                        return ptr;
+                    assembly {
+                        testHash := keccak256(ptr, needlelen)
+                    }
+                    if (hash == testHash) return ptr;
                     ptr += 1;
                 }
             }
@@ -84,7 +92,7 @@ library strings {
 
     function memcpy(uint dest, uint src, uint length) private pure {
         // Copy word-length chunks while possible
-        for(; length >= 32; length -= 32) {
+        for (; length >= 32; length -= 32) {
             assembly {
                 mstore(dest, mload(src))
             }
@@ -107,7 +115,9 @@ library strings {
     function toString(slice memory self) internal pure returns (string memory) {
         string memory ret = new string(self._len);
         uint retptr;
-        assembly { retptr := add(ret, 32) }
+        assembly {
+            retptr := add(ret, 32)
+        }
 
         memcpy(retptr, self._ptr, self._len);
         return ret;
@@ -126,29 +136,37 @@ library strings {
                 }
 
                 bytes32 needledata;
-                assembly { needledata := and(mload(needleptr), mask) }
+                assembly {
+                    needledata := and(mload(needleptr), mask)
+                }
 
                 ptr = selfptr + selflen - needlelen;
                 bytes32 ptrdata;
-                assembly { ptrdata := and(mload(ptr), mask) }
+                assembly {
+                    ptrdata := and(mload(ptr), mask)
+                }
 
                 while (ptrdata != needledata) {
-                    if (ptr <= selfptr)
-                        return selfptr;
+                    if (ptr <= selfptr) return selfptr;
                     ptr--;
-                    assembly { ptrdata := and(mload(ptr), mask) }
+                    assembly {
+                        ptrdata := and(mload(ptr), mask)
+                    }
                 }
                 return ptr + needlelen;
             } else {
                 // For long needles, use hashing
                 bytes32 hash;
-                assembly { hash := keccak256(needleptr, needlelen) }
+                assembly {
+                    hash := keccak256(needleptr, needlelen)
+                }
                 ptr = selfptr + (selflen - needlelen);
                 while (ptr >= selfptr) {
                     bytes32 testHash;
-                    assembly { testHash := keccak256(ptr, needlelen) }
-                    if (hash == testHash)
-                        return ptr + needlelen;
+                    assembly {
+                        testHash := keccak256(ptr, needlelen)
+                    }
+                    if (hash == testHash) return ptr + needlelen;
                     ptr -= 1;
                 }
             }
@@ -156,7 +174,7 @@ library strings {
         return selfptr;
     }
 
-     /*
+    /*
      * @dev Splits the slice, setting `self` to everything before the last
      *      occurrence of `needle`, and `token` to everything after it. If
      *      `needle` does not occur in `self`, `self` is set to the empty slice,
