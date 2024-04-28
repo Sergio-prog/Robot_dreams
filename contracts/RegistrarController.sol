@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
