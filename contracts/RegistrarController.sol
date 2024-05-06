@@ -2,7 +2,7 @@
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV2V3Interface.sol";
 
@@ -39,7 +39,7 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
         AggregatorV3Interface oracle;
 
         /// @notice Stableocoin contract address
-        IERC20 stablecoinAddress;
+        ERC20 stablecoinAddress;
         
         /// @notice Default ethereum address
         address etherAddress;
@@ -95,7 +95,7 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
         emit DomainPriceChanged(_domainPrice);
 
         _getMainStorage().oracle = AggregatorV3Interface(_oracle);
-        _getMainStorage().stablecoinAddress = IERC20(_stablecoinAddress);
+        _getMainStorage().stablecoinAddress = ERC20(_stablecoinAddress);
         _getMainStorage().etherAddress = address(0);
     }
 
@@ -125,10 +125,11 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
     
     /// Current domain price in ETH
     function ethDomainPrice() public view returns (uint256) {
+        MainStorage storage $ = _getMainStorage();
         uint256 ethPrice = getETHPriceFeed();
         require(ethPrice != 0, "ETH price feed is zero");
 
-        return _getMainStorage().domainPrice / getETHPriceFeed();
+        return ($.domainPrice / ethPrice) * 10 ** (18 - $.priceDecimals);
     }
 
     /// Get rewards of address. Returns ether rewards and stablecoin rewards
@@ -147,10 +148,15 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
 
         require($.domainRecords[domainName] == address(0), "Domain has been purchased by someone before.");
 
-        if (isStableCoinPay == true) {
-            require($.stablecoinAddress.balanceOf(msg.sender) >= $.domainPrice, "Your balance is too low.");
+        uint256 restValue = $.domainPrice;
+        uint256 rewardDecimals = $.stablecoinAddress.decimals() - $.priceDecimals;
+        
+        uint256 stablecoinDomainPrice = $.domainPrice * 10 ** rewardDecimals;
 
-            bool success = $.stablecoinAddress.transferFrom(msg.sender, address(this), $.domainPrice);
+        if (isStableCoinPay == true) {
+            require($.stablecoinAddress.balanceOf(msg.sender) >= stablecoinDomainPrice, "Your balance is too low.");
+
+            bool success = $.stablecoinAddress.transferFrom(msg.sender, address(this), stablecoinDomainPrice);
             if (!success) revert FailedToTransferStablecoin();
         } else {
             require(msg.value >= ethDomainPrice(), "Ether value is lower than price.");
@@ -159,8 +165,6 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
         strings.slice memory s = domainName.toSlice();
         strings.slice memory delim = ".".toSlice();
         uint256 parts = s.count(delim);
-
-        uint256 restValue = $.domainPrice;
 
         string memory localDomainName = "";
 
@@ -177,16 +181,18 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
             if (domainOwner != address(0)) {
                 uint256 reward = $.domainPrice / parts;
                 if (isStableCoinPay == true) {
-                    $.domainRewards[domainOwner][address($.stablecoinAddress)] += reward;
-                } else {
-                    $.domainRewards[domainOwner][$.etherAddress] += reward / getETHPriceFeed();
-                }
+                    uint256 stablecoinReward = reward * 10 ** rewardDecimals;
 
+                    $.domainRewards[domainOwner][address($.stablecoinAddress)] += stablecoinReward;
+                } else {
+                    uint256 ethReward = (reward) / getETHPriceFeed() * 10 ** (18 - $.priceDecimals);
+                    $.domainRewards[domainOwner][$.etherAddress] += ethReward;
+                }
                 restValue -= reward;
             }
         }
 
-        $.domainRewards[owner()][$.etherAddress] += restValue / getETHPriceFeed();
+        $.domainRewards[owner()][$.etherAddress] += (restValue) / getETHPriceFeed() * 10 ** (18 - $.priceDecimals);
 
         $.domainRecords[domainName] = msg.sender;
         emit DomainPurchase(msg.sender, domainName, block.timestamp);
@@ -202,36 +208,35 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
         emit DomainPriceChanged($.domainPrice);
     }
 
-    /**
-     * Withdraws all ethers rewards from contract to owner
-     * @param to Rewards receiver address
-     */
-    function withdrawAllRewards(address payable to) external {
+    /// Withdraws all ethers rewards from contract to owner
+    function withdrawAllRewards() external {
         MainStorage storage $ = _getMainStorage();
 
-        uint256 balance = $.domainRewards[to][$.etherAddress];
-        uint256 stablecoinBalance = $.domainRewards[to][address($.stablecoinAddress)];
+        address from = msg.sender;
+
+        uint256 balance = $.domainRewards[from][$.etherAddress];
+        uint256 stablecoinBalance = $.domainRewards[from][address($.stablecoinAddress)];
 
         if (balance == 0 && stablecoinBalance == 0) {
             revert("Your rewards is 0.");
         }
 
         if (balance > 0) {
-            $.domainRewards[to][$.etherAddress] = 0;
+            $.domainRewards[from][$.etherAddress] = 0;
 
-            (bool sent, ) = to.call{value: balance}("");
+            (bool sent, ) = from.call{value: balance}("");
             require(sent, "Failed to send Ether rewards.");
 
-            emit EtherWithdraw(to, balance);
+            emit EtherWithdraw(from, balance);
         }
 
         if (stablecoinBalance > 0) {
-            $.domainRewards[to][address($.stablecoinAddress)] = 0;
+            $.domainRewards[from][address($.stablecoinAddress)] = 0;
 
-            bool sent = $.stablecoinAddress.transfer(to, stablecoinBalance);
+            bool sent = $.stablecoinAddress.transfer(from, stablecoinBalance);
             require(sent, "Failed to send stablecoin rewards.");
 
-            emit StablecoinWithdraw(to, stablecoinBalance);
+            emit StablecoinWithdraw(from, stablecoinBalance);
         }
     }
 }
