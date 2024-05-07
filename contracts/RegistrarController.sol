@@ -192,7 +192,11 @@ contract RegistrarController is Initializable, OwnableUpgradeable {
             }
         }
 
-        $.domainRewards[owner()][$.etherAddress] += (restValue) / getETHPriceFeed() * 10 ** (18 - $.priceDecimals);
+        if (isStableCoinPay == true) {
+            $.domainRewards[owner()][address($.stablecoinAddress)] += restValue * 10 ** rewardDecimals;
+        } else {
+            $.domainRewards[owner()][$.etherAddress] += (restValue) / getETHPriceFeed() * 10 ** (18 - $.priceDecimals);
+        }
 
         $.domainRecords[domainName] = msg.sender;
         emit DomainPurchase(msg.sender, domainName, block.timestamp);

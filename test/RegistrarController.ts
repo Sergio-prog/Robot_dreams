@@ -42,10 +42,6 @@ describe("RegistrarController", function () {
       const registrar = await upgrades.deployProxy(RegistrarController, [owner.address, domainPrice, usdDecimals, await oracle.getAddress(), await usdt.getAddress()],
        { initializer: 'initialize', kind: 'transparent' });
 
-      console.log(await registrar.ethDomainPrice());
-      console.log(await registrar.domainPrice(), await registrar.getETHPriceFeed(), 
-      (await registrar.domainPrice() / BigInt(await registrar.getETHPriceFeed())) * 10n ** 10n);
-
       const ethDomainPrice = await registrar.ethDomainPrice();
 
       // Listening events
@@ -207,7 +203,6 @@ describe("RegistrarController", function () {
             const tx1 = await registrar.domainRewards(otherAccount);
             const tx2 = await registrar.domainRewards(owner);
             
-            console.log(await registrar.domainRewards(otherAccount));
             expect(tx1[0]).to.equal(domainPrice);
             expect(tx2[0]).to.equal(domainPrice);
         });
@@ -220,27 +215,24 @@ describe("RegistrarController", function () {
 
             const registerTx2 = await registrar.connect(otherAccount2).registerDomain("www.test.io", false, { value: domainPrice });
             
-            console.log(domainPrice, -domainPrice, otherAccount2.address);
             await expect(registerTx2).to.changeEtherBalances(
                 [otherAccount2],
                 [-domainPrice]
             );
-            
-            console.log(await registrar.domainRewards(otherAccount));
-            console.log(await registrar.domainRewards(owner));
             
             expect((await registrar.domainRewards(otherAccount))[0]).to.equal(domainPrice * 2n);
             expect((await registrar.domainRewards(owner))[0]).to.equal(domainPrice);
         });
 
         it("Should add mixed rewards (USDT, ETH) for top domain owners (3 levels)", async function() {
-            const { registrar, domainPrice, usdDomainPrice, otherAccount, otherAccount2, owner, usdt, convertedUsdt } = await loadFixture(deployFixture);
+            const { registrar, domainPrice, otherAccount, otherAccount2, owner, usdt, convertedUsdt } = await loadFixture(deployFixture);
             
             await usdt.transfer(otherAccount, convertedUsdt * 2n);
             await usdt.transfer(otherAccount2, convertedUsdt);
             
             await usdt.connect(otherAccount).approve(await registrar.getAddress(), convertedUsdt * 2n);
             await registrar.connect(otherAccount).registerDomain("io", true);
+
             await registrar.connect(otherAccount).registerDomain("test.io", false, { value: domainPrice });
 
             await usdt.connect(otherAccount2).approve(await registrar.getAddress(), convertedUsdt);
@@ -254,7 +246,7 @@ describe("RegistrarController", function () {
             
             expect((await registrar.domainRewards(otherAccount))[0]).to.equal(domainPrice);
             expect((await registrar.domainRewards(otherAccount))[1]).to.equal(convertedUsdt);
-            expect((await registrar.domainRewards(owner))[0]).to.equal(domainPrice);
+            expect((await registrar.domainRewards(owner))[1]).to.equal(convertedUsdt);      
         });
 
         it("Should revert if trying to register wrong top level domain.", async function() {
@@ -329,7 +321,7 @@ describe("RegistrarController", function () {
 
         it("Withdraw all mixed rewards (USDT, ETH) to address (3 levels)", async function() {
             const { registrar, usdt, owner, otherAccount,
-                 otherAccount2, domainPrice, usdDomainPrice, convertedUsdt } = await loadFixture(deployFixture);
+                 otherAccount2, domainPrice, convertedUsdt } = await loadFixture(deployFixture);
             
             await usdt.transfer(otherAccount, convertedUsdt * 2n);
             await usdt.transfer(otherAccount2, convertedUsdt * 3n);
@@ -338,9 +330,7 @@ describe("RegistrarController", function () {
             await registrar.connect(otherAccount).registerDomain("io", true);
             await registrar.connect(otherAccount).registerDomain("test.io", false, { value: domainPrice });
             
-            console.log(await registrar.domainRewards(otherAccount.address));
             await registrar.connect(otherAccount).registerDomain("airdrop.test.io", true);
-            console.log(await registrar.domainRewards(otherAccount.address));
             
             await usdt.connect(otherAccount2).approve(await registrar.getAddress(), convertedUsdt * 2n);
             await expect(await registrar.connect(otherAccount2).registerDomain("www.test.io", true)).to.changeTokenBalances(
@@ -353,17 +343,15 @@ describe("RegistrarController", function () {
 
             expect(await hre.ethers.provider.getBalance(await registrar.getAddress())).to.equal(domainPrice);
             expect(await usdt.balanceOf(await registrar.getAddress())).to.equal(convertedUsdt * 3n);
-            await expect(registrar.withdrawAllRewards()).to.changeEtherBalances(
+            await expect(registrar.connect(owner).withdrawAllRewards()).to.changeTokenBalances(
+                usdt,
                 [owner, registrar],
-                [domainPrice, -domainPrice]
+                [convertedUsdt, -convertedUsdt]
             );
 
             const rewards = await registrar.connect(otherAccount).domainRewards(otherAccount.address);
             await expect(rewards[0]).to.equal(domainPrice);
             await expect(rewards[1]).to.equal(convertedUsdt * 2n);
-            
-            console.log(await hre.ethers.provider.getBalance(await registrar.getAddress()));
-            console.log(await registrar.domainRewards(otherAccount.address));
             
             const withdrawTx = await registrar.connect(otherAccount).withdrawAllRewards();
 
